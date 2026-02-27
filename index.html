@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<style>
+body{
+margin:0;
+background:#111;
+font-family:Arial;
+overflow:hidden;
+color:white;
+}
+
+.message{
+text-align:center;
+font-size:3rem;
+padding:10px;
+}
+
+.playarea{
+position:relative;
+height:85vh;
+}
+
+/* PAD */
+.pad{
+position:absolute;
+width:130px;
+height:130px;
+border-radius:50%;
+display:flex;
+align-items:center;
+justify-content:center;
+transition:.25s;
+}
+
+.lit{
+filter:brightness(2);
+box-shadow:0 0 40px white;
+}
+
+.wrongFlash{
+background:#ff2222 !important;
+transform:scale(0.9);
+}
+
+/* SYMBOLER */
+.plus::before,.plus::after{
+content:"";position:absolute;background:white;
+}
+.plus{position:relative;width:60px;height:60px;}
+.plus::before{width:60px;height:14px;top:23px;}
+.plus::after{width:14px;height:60px;left:23px;}
+
+.circle{width:45px;height:45px;background:white;border-radius:50%;}
+.square{width:45px;height:45px;background:white;}
+
+.triangle{
+width:0;height:0;
+border-left:28px solid transparent;
+border-right:28px solid transparent;
+border-bottom:50px solid white;
+}
+
+.star{
+width:45px;height:45px;
+background:white;
+clip-path:polygon(
+50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,
+50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+}
+
+.diamond{
+width:40px;height:40px;
+background:white;
+transform:rotate(45deg);
+}
+
+/* COLORS */
+.red{background:#d32f2f;}
+.blue{background:#1976d2;}
+.green{background:#388e3c;}
+.yellow{background:#fdd835;}
+.purple{background:#7b1fa2;}
+.orange{background:#ef6c00;}
+</style>
+</head>
+
+<body>
+
+<div class="message" id="message">Titta 👀</div>
+<div class="playarea" id="playarea"></div>
+
+<script>
+
+/* ========= SOUND ========= */
+
+const ctx=new(window.AudioContext||window.webkitAudioContext)();
+
+function pling(){
+if(ctx.state==="suspended") ctx.resume();
+let o=ctx.createOscillator();
+let g=ctx.createGain();
+o.type="triangle";
+o.frequency.value=1200;
+o.connect(g);g.connect(ctx.destination);
+g.gain.setValueAtTime(.4,ctx.currentTime);
+g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.3);
+o.start();o.stop(ctx.currentTime+.3);
+}
+
+function wrongSound(){
+let o=ctx.createOscillator();
+let g=ctx.createGain();
+o.frequency.value=180;
+o.type="sawtooth";
+o.connect(g);g.connect(ctx.destination);
+g.gain.setValueAtTime(.35,ctx.currentTime);
+g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.25);
+o.start();o.stop(ctx.currentTime+.25);
+}
+
+/* ========= DATA ========= */
+
+const identities=[
+{color:"red",symbol:"plus"},
+{color:"blue",symbol:"circle"},
+{color:"green",symbol:"triangle"},
+{color:"yellow",symbol:"square"},
+{color:"purple",symbol:"star"},
+{color:"orange",symbol:"diamond"}
+];
+
+const pads=[];
+const playarea=document.getElementById("playarea");
+
+/* ========= POSITION WITHOUT OVERLAP ========= */
+
+function validPosition(x,y){
+for(let p of pads){
+let dx=x-parseFloat(p.dataset.x);
+let dy=y-parseFloat(p.dataset.y);
+if(Math.sqrt(dx*dx+dy*dy)<150) return false;
+}
+return true;
+}
+
+function randomPosition(){
+
+let x,y,tries=0;
+
+do{
+x=Math.random()*80+5;
+y=Math.random()*60+10;
+tries++;
+}while(!validPosition(x,y)&&tries<100);
+
+return {x,y};
+}
+
+/* ========= CREATE ========= */
+
+identities.forEach(id=>{
+
+let pad=document.createElement("div");
+pad.className="pad "+id.color;
+pad.innerHTML=`<div class="${id.symbol}"></div>`;
+
+let pos=randomPosition();
+pad.dataset.x=pos.x;
+pad.dataset.y=pos.y;
+
+pad.style.left=pos.x+"vw";
+pad.style.top=pos.y+"vh";
+
+playarea.appendChild(pad);
+pads.push(pad);
+
+pad.addEventListener("pointerdown",()=>playerPress(pad));
+});
+
+/* ========= GAME ========= */
+
+let sequence=[];
+let playerIndex=0;
+let acceptingInput=false;
+
+function nextRound(){
+
+acceptingInput=false;
+playerIndex=0;
+
+sequence.push(
+pads[Math.floor(Math.random()*pads.length)]
+);
+
+showSequence();
+}
+
+async function showSequence(){
+
+document.getElementById("message").innerText="Titta 👀";
+
+for(let pad of sequence){
+pad.classList.add("lit");
+await wait(600);
+pad.classList.remove("lit");
+await wait(250);
+}
+
+acceptingInput=true;
+document.getElementById("message").innerText="Din tur!";
+}
+
+function playerPress(pad){
+
+if(!acceptingInput) return;
+
+if(pad!==sequence[playerIndex]){
+
+wrongSound();
+pad.classList.add("wrongFlash");
+
+setTimeout(()=>{
+pad.classList.remove("wrongFlash");
+},250);
+
+sequence=[];
+setTimeout(nextRound,900);
+return;
+}
+
+pling();
+
+pad.classList.add("lit");
+setTimeout(()=>pad.classList.remove("lit"),200);
+
+playerIndex++;
+
+if(playerIndex===sequence.length){
+setTimeout(nextRound,800);
+}
+}
+
+function wait(ms){
+return new Promise(r=>setTimeout(r,ms));
+}
+
+nextRound();
+
+</script>
+</body>
+</html>
